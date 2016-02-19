@@ -1,0 +1,9 @@
+{
+  "name": "lua_dlopen",
+  "version": "0.0.1",
+  "description": "simple example showing lua dynamically opening so",
+  "keywords": ["example"],
+  "dependencies": {
+    "tencherry10/lua" : "*"
+  }
+}
