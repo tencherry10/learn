@@ -1,0 +1,20 @@
+{
+  "name": "lua",
+  "version": "5.3.2",
+  "repo": "tencherry10/lua",
+  "description": "lua packaged for clib",
+  "keywords": ["scripting", "lua", "sandbox"],
+  "license": "MIT",
+  "prepare": "make linux",
+  "prepared_src": [
+    "src/liblua.a",
+    "src/liblua.so"  
+  ],
+  "src": [
+    "src/lua.h",
+    "src/lua.hpp",
+    "src/lualib.h",
+    "src/lauxlib.h",
+    "src/luaconf.h"
+  ]
+}
