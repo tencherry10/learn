@@ -3,7 +3,7 @@
 PREFIX ?= /usr/local
 CC      = gcc
 RUNDIR  = build
-BINS    = $(RUNDIR)/pubber $(RUNDIR)/subber
+BINS    = $(RUNDIR)/pubber $(RUNDIR)/subber $(RUNDIR)/pubtest $(RUNDIR)/subtest
 DLLS    = 
 RM      = rm -f
 SRC     = 
