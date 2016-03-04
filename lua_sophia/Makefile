@@ -3,16 +3,16 @@
 PREFIX ?= /usr/local
 CC      = gcc
 RUNDIR  = build
-BINS    = 
+BINS    = $(RUNDIR)/main
 DLLS    = $(RUNDIR)/libluasophia.so
 RM      = rm -f
 SRC     = 
 DEPS    = $(wildcard deps/*/*.c)
 OBJS    = $(DEPS:.c=.o)
-CFLAGS  = -std=c99 -Ideps -O3 -Ideps/lua -Ldeps/lua -Ideps/sophia -Ldeps/sophia
+CFLAGS  = -std=c99 -Ideps -O3 -Ideps/lua -Ldeps/lua -Ideps/sophia -Ldeps/sophia -g
 CFLAGS += -Wall -Werror -Wno-unused-function -Wno-unused-value -Wno-unused-variable
 CDLL    = -fpic -shared
-CLIB    = -llua -ldl
+CLIB    = -llua -ldl -lm -lsophia -lpthread
 
 all: $(BINS) $(DLLS)
 
@@ -37,5 +37,12 @@ clean:
 	$(RM) -r $(RUNDIR)
 	$(RM) $(OBJS)
 
-run:
-	LD_LIBRARY_PATH=deps/lua $(BINS)
+define runner
+
+$(notdir $(1)): all $(1)
+	#@cd build ; strip -s ./$(notdir $(1))
+	@cd build ; LD_LIBRARY_PATH=../deps/jansson:../deps/sophia:../deps/lua ./$(notdir $(1))
+
+endef
+
+$(foreach i,$(BINS),$(eval $(call runner,$(i))))

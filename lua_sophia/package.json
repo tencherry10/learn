@@ -5,6 +5,7 @@
   "keywords": ["database", "lua"],
   "dependencies": {
     "tencherry10/lua" : "*",
-    "tencherry10/sophia" : "*"
+    "tencherry10/sophia" : "*",
+    "tencherry10/kvec" : "*"
   }
 }
