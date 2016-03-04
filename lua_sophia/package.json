@@ -1,0 +1,10 @@
+{
+  "name": "lua_sophia",
+  "version": "0.0.1",
+  "description": "sophia - lua adapter",
+  "keywords": ["database", "lua"],
+  "dependencies": {
+    "tencherry10/lua" : "*",
+    "tencherry10/sophia" : "*"
+  }
+}
