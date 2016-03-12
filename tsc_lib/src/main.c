@@ -1,3 +1,4 @@
+#include <assert.h>
 
 #define TSC_DEFINE
 #include "tsc.h"
@@ -5,11 +6,14 @@
 int main(int argc, const char ** argv) {
   (void)argc;
   (void)argv;
-  int line = 0;
-  const char * estr = NULL;
-  char * res = NULL;
-  int  sz;
-  FILE * fp;
+  int         line    = 0;
+  const char  *estr   = NULL;
+  char        *res    = NULL;
+  char        **lines = NULL;
+  int         nlines  = 0;  
+  int         sz;
+  FILE        *fp;
+  
   if( (fp = fopen("../test/t1.txt", "r")) == NULL)
     return 1;
   
@@ -20,6 +24,7 @@ int main(int argc, const char ** argv) {
       } else {
         printf("tsc_fgets failed with %s\n",  estr);
       }
+      free(res);
       break;
     } else {
       printf("line %d/sz=%d : %s", line++, sz, res);
@@ -44,6 +49,7 @@ int main(int argc, const char ** argv) {
       sz = strlen(res);
       if(!strcmp("EOF", estr)) {
         printf("line %d/sz=%d : %s", line++, sz, res);
+        free(res);
       } else {
         printf("tsc_fgets failed with %s\n",  estr);
       }
@@ -57,23 +63,38 @@ int main(int argc, const char ** argv) {
       res = NULL;      
     }
   }
-  
   if(fp) fclose(fp);
-
-  char ** lines = NULL;
-  int nlines = 0;
+  printf("\n\n");
   
   if( (fp = fopen("../test/t2.txt", "r")) == NULL)
     return 1;
   
-  if( (estr = tsc_freadlines(&lines, &nlines, fp)) != NULL) {
+  
+  if( (estr = tsc_freadlines(&lines, &nlines, fp)) == NULL) {
     for(int i = 0 ; i < nlines ; i++) {
       printf("line %d/sz=%zu : %s", i, strlen(lines[i]), lines[i]);
+      tsc_strtrim_inplace(lines[i]);
     }
+    printf("\n\n");
+    
+    if( (estr = tsc_strflatten(&res, lines, nlines, ",", 1)) == NULL ) {
+      printf("res: %s", res);
+    }
+      
+    free(res);
+    tsc_freadlinesfree(lines, nlines);
   }
-  
   if(fp) fclose(fp);
   
-  free(res);
+  printf("\n\n");
+  
+  assert(tsc_strstartswith("abcd123", "ab"));
+  assert(!tsc_strstartswith("abcd123", "bb"));
+  
+  
+  
+  
+  
+  
   return 0;
 }

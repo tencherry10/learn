@@ -13,7 +13,8 @@ CFLAGS  = -std=c99 -pedantic -Ideps -Isrc -g
 CFLAGS += -Wall -Werror -Wextra -Wno-unused-function -Wno-unused-value -Wno-unused-variable -Wno-unused-result
 CFLAGS_BINS = -DTEST_MAIN
 CDLL    = -shared
-CLIB    = -ldl -lm 
+CLIB    = -ldl -lm
+LIB_PATH= ../deps/jansson:../deps/sophia:../deps/lua:../../libhost/build/
 
 all: $(BINS) $(DLLS)
 
@@ -42,7 +43,11 @@ define runner
 
 $(notdir $(1)): all $(1)
 	#@cd build ; strip -s ./$(notdir $(1))
-	@cd build ; LD_LIBRARY_PATH=../deps/jansson:../deps/sophia:../deps/lua:../../libhost/build/ ./$(notdir $(1))
+	@cd build ; LD_LIBRARY_PATH=$(LIB_PATH) ./$(notdir $(1))
+
+$(notdir $(1))_mem: all $(1)
+	@cd build ; LD_LIBRARY_PATH=$(LIB_PATH) valgrind ./$(notdir $(1))
+
 
 endef
 
