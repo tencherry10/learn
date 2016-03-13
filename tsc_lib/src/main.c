@@ -210,10 +210,44 @@ int main(int argc, const char ** argv) {
   tsc_vec_foreach(a, v, i)
     printf("a[%zu] = %d\n", i, v);    
   printf("\n\n");  
+  
+  tsc_vec_copy(vi, c, b);
+  
+  tsc_vec_foreach_ptr(b, vp, i)
+    *vp = *vp < 0;  
+  tsc_vec_foreach(b, v, i)
+    printf("b[%zu] = %d\n", i, v);    
+  printf("all: %d\n", tsc_vec_all(vi, b));
+  printf("any: %d\n", tsc_vec_any(vi, b));
+  printf("\n\n");  
+  
+  
+  
+  tsc_vec_pop(c);
+  tsc_vec_foreach_ptr(c, vp, i)
+    *vp = *vp >= 0;  
+  tsc_vec_foreach(c, v, i)
+    printf("c[%zu] = %d\n", i, v);    
+  printf("all: %d\n", tsc_vec_all(vi, c));
+  printf("any: %d\n", tsc_vec_any(vi, c));
+  printf("\n\n");  
+  
+  
+  
 
   tsc_vec_destroy(a);
   tsc_vec_destroy(b);
   tsc_vec_destroy(c);
+  
+  char *ss = "Hello World";
+  char *s; 
+  tsc_strupper(&s, ss);
+  printf("upper: %s\n", s);
+  free(s);
+  tsc_strlower(&s, ss);
+  printf("lower: %s\n", s);
+  free(s);
+  
   
   return 0;
 }

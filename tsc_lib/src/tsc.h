@@ -26,6 +26,8 @@
 #define tsc_vec_subvec(name, d, s, start, count) tsc_vec_##name##_subvec(&(d), &(s), start, count)
 #define tsc_vec_insert(name, v, idx, x) tsc_vec_##name##_insert(&(v), idx, x)
 #define tsc_vec_pushfront(name, v, x) tsc_vec_##name##_insert(&(v), 0, x)
+#define tsc_vec_all(name,v) tsc_vec_##name##_all(&(v))
+#define tsc_vec_any(name,v) tsc_vec_##name##_any(&(v))
 
 #define tsc_vec_init(v) ((v).n = (v).m = 0, (v).a = 0)
 #define tsc_vec_destroy(v) free((v).a)
@@ -112,9 +114,19 @@
     for(size_t i = v->n ; i > idx ; --i ) {                                             \
       v->a[i] = v->a[i-1];                                                              \
     }                                                                                   \
-    v->n++; v->a[idx] = x; return NULL; }                                               
-  
-  
+    v->n++; v->a[idx] = x; return NULL; }                                               \
+  static inline int tsc_vec_##name##_all(tsc_vec_##name##_t *v) {                       \
+    int ret = 1;                                                                        \
+    for(size_t i = 0 ; i < v->n ; ++i)                                                  \
+      ret = ret && !!(v->a[i]);                                                         \
+    return ret; }                                                                       \
+  static inline int tsc_vec_##name##_any(tsc_vec_##name##_t *v) {                       \
+    int ret = 0;                                                                        \
+    for(size_t i = 0 ; i < v->n ; ++i)                                                  \
+      ret = ret || !!(v->a[i]);                                                         \
+    return ret; }
+    
+    
 #define tsc_vec_splice(v, start, count) do {                                            \
     if(count == 0) break;                                                               \
     if(start > (v).n) {                                                                 \
@@ -141,7 +153,12 @@
 #define tsc_vec_foreach_ptr_rev(v, var, iter)                                           \
   if( (v).n > 0 )                                                                       \
     for ( (iter) = v.n - 1 ; ((iter + 1) > 0) && (((var) = &((v).a[(iter)]) ), 1); --(iter))
-
+#define tsc_vec_map(v, fn) do {                                                         \
+  if( (v).n > 0 ) {                                                                     \
+    for ( size_t i = 0; i < (v).n ; ++i) {                                              \
+      (v).a[i] = fn((v).a[i]);                                                          \
+    }                                                                                   \
+  } while(0)
 
 /// helper that never return error
 
@@ -150,7 +167,8 @@ TSC_EXTERN int    tsc_strendswith(const char *s, const char *end);
 TSC_EXTERN char * tsc_strtrimleft_inplace(char *s);
 TSC_EXTERN char * tsc_strtrimright_inplace(char *s);
 TSC_EXTERN char * tsc_strtrim_inplace(char *s);
-
+TSC_EXTERN char * tsc_strupper_inplace(char *str);
+TSC_EXTERN char * tsc_strlower_inplace(char *str);
 
 /// general helper
 
@@ -159,6 +177,10 @@ TSC_EXTERN const char * tsc_strdup(char **ret, const char *s);
 TSC_EXTERN const char * tsc_strndup(char **ret, const char *s, size_t n);
 TSC_EXTERN const char * tsc_strflatten(char **ret, char ** str_array, size_t n, const char * sep, size_t sep_sz);
 TSC_EXTERN inline const char * tsc_strtrunc(char **ret, const char *s, size_t n);
+TSC_EXTERN inline const char * tsc_strupper(char **ret, char *s);
+TSC_EXTERN inline const char * tsc_strlower(char **ret, char *s);
+
+
 
 /// files
 
@@ -217,6 +239,24 @@ char* tsc_strtrim_inplace(char *s) {
   tsc_strtrimright_inplace(s);
   tsc_strtrimleft_inplace(s);
   return s;
+}
+
+char* tsc_strupper_inplace(char *str) {
+  for (int i = 0, len = strlen(str); i < len; i++) {
+    if (islower(str[i])) {
+      str[i] &= ~0x20;
+    }
+  }
+  return str;
+}
+
+char* tsc_strlower_inplace(char *str) {
+  for (int i = 0, len = strlen(str); i < len; i++) {
+    if (isupper(str[i])) {
+      str[i] |= 0x20;
+    }
+  }
+  return str;
 }
 
 const char * tsc_strflatten(char **ret, char ** str_array, size_t n, const char * sep, size_t sep_sz) {
@@ -288,6 +328,21 @@ const char * tsc_strndup(char **ret, const char *s, size_t n) {
   return NULL;
 }
 
+inline const char * tsc_strupper(char **ret, char *s) {
+  const char  *estr = NULL;
+  if( (estr = tsc_strdup(ret, s)) != NULL )
+    return estr;
+  tsc_strupper_inplace(*ret);
+  return NULL;
+}
+
+inline const char * tsc_strlower(char **ret, char *s) {
+  const char  *estr = NULL;
+  if( (estr = tsc_strdup(ret, s)) != NULL )
+    return estr;
+  tsc_strlower_inplace(*ret);
+  return NULL;
+}
 
 // this function models after python's readline function
 // it will take care of all the corner cases of fgets
