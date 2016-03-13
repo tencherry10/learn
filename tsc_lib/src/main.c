@@ -94,16 +94,18 @@ int main(int argc, const char ** argv) {
   assert(tsc_strstartswith("abcd123", "ab"));
   assert(!tsc_strstartswith("abcd123", "bb"));
   
-  vec_int_t a;
+  vec_int_t a, b, c;
   tsc_vec_init(a);
+  tsc_vec_init(b);
+  tsc_vec_init(c);
+  
   tsc_vec_push(vi, a, 0);
   tsc_vec_push(vi, a, 1);
   tsc_vec_push(vi, a, 2);
   tsc_vec_push(vi, a, 3);
   tsc_vec_push(vi, a, 4);
   
-  vec_int_t b;
-  tsc_vec_init(b);
+  
   tsc_vec_push(vi, b, 10);
   tsc_vec_push(vi, b, 20);
   tsc_vec_push(vi, b, 30);
@@ -149,9 +151,69 @@ int main(int argc, const char ** argv) {
   tsc_vec_splice(b, 2, 2);
   tsc_vec_foreach(b, v, i)
     printf("v[%zu] = %d\n", i, v);
-    
+  printf("\n\n");  
+  
+  tsc_vec_clear(b);
+  tsc_vec_push(vi, b, 0);
+  tsc_vec_push(vi, b, 1);
+  tsc_vec_push(vi, b, 2);
+  tsc_vec_push(vi, b, 3);
+  tsc_vec_push(vi, b, 4);  
+
+  tsc_vec_foreach(b, v, i)
+    printf("v[%zu] = %d\n", i, v);
+  printf("\n\n");  
+  
+  tsc_vec_pushfront(vi, b, 1000);
+
+  tsc_vec_foreach(b, v, i)
+    printf("v[%zu] = %d\n", i, v);
+  printf("\n\n");  
+  
+  tsc_vec_splice(b, 1, 1);
+
+  tsc_vec_foreach(b, v, i)
+    printf("v[%zu] = %d\n", i, v);
+  printf("\n\n");  
+
+  tsc_vec_insert(vi, b, 4, 2000);
+  
+  tsc_vec_foreach(b, v, i)
+    printf("v[%zu] = %d\n", i, v);
+  printf("\n\n");  
+  
+  tsc_vec_insert(vi, b, tsc_vec_size(b), -1);
+
+  tsc_vec_foreach(b, v, i)
+    printf("v[%zu] = %d\n", i, v);
+  printf("\n\n");  
+  
+  tsc_vec_subvec(vi, c, b, 1, 3);
+
+  tsc_vec_foreach(b, v, i)
+    printf("b[%zu] = %d\n", i, v);
+  tsc_vec_foreach(c, v, i)
+    printf("c[%zu] = %d\n", i, v);    
+  printf("\n\n");  
+  
+  tsc_vec_copy(vi, a, b);
+  tsc_vec_foreach(a, v, i)
+    printf("a[%zu] = %d\n", i, v);    
+  printf("\n\n");  
+
+  tsc_vec_copy(vi, a, a);
+  tsc_vec_foreach(a, v, i)
+    printf("a[%zu] = %d\n", i, v);    
+  printf("\n\n");  
+
+  tsc_vec_extend(vi, a, a);
+  tsc_vec_foreach(a, v, i)
+    printf("a[%zu] = %d\n", i, v);    
+  printf("\n\n");  
+
   tsc_vec_destroy(a);
   tsc_vec_destroy(b);
+  tsc_vec_destroy(c);
   
   return 0;
 }

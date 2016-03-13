@@ -24,6 +24,8 @@
 #define tsc_vec_extend(name, d, s) tsc_vec_##name##_extend(&(d),&(s))
 #define tsc_vec_reverse(name, v) tsc_vec_##name##_reverse(&(v))
 #define tsc_vec_subvec(name, d, s, start, count) tsc_vec_##name##_subvec(&(d), &(s), start, count)
+#define tsc_vec_insert(name, v, idx, x) tsc_vec_##name##_insert(&(v), idx, x)
+#define tsc_vec_pushfront(name, v, x) tsc_vec_##name##_insert(&(v), 0, x)
 
 #define tsc_vec_init(v) ((v).n = (v).m = 0, (v).a = 0)
 #define tsc_vec_destroy(v) free((v).a)
@@ -42,17 +44,16 @@
     type *tmp;                                                                          \
     if( (tmp = (type*)realloc(v->a, sizeof(type) * s)) == NULL )                        \
       return "OOM";                                                                     \
-    v->m = s; v->a = tmp; return NULL;                                                  \
-  }                                                                                     \
+    v->m = s; v->a = tmp; return NULL; }                                                \
   static inline const char*                                                             \
   tsc_vec_##name##_copy(tsc_vec_##name##_t *dst, tsc_vec_##name##_t *src) {             \
     const char *estr;                                                                   \
+    if (dst == src) return "COPYING FROM SRC TO SRC";                                   \
     if (dst->m < src->n)                                                                \
       if( (estr = tsc_vec_##name##_resize(dst, src->n)) != NULL )                       \
         return estr;                                                                    \
     dst->n = src->n;                                                                    \
-    memcpy(dst->a, src->a, sizeof(type) * src->n); return NULL;                         \
-  }                                                                                     \
+    memcpy(dst->a, src->a, sizeof(type) * src->n); return NULL; }                       \
   static inline const char* tsc_vec_##name##_push(tsc_vec_##name##_t *v, type x) {      \
     const char *estr;                                                                   \
     if(v->n == v->m) {                                                                  \
@@ -60,8 +61,7 @@
       if( (estr = tsc_vec_##name##_resize(v, m)) != NULL )                              \
         return estr;                                                                    \
     }                                                                                   \
-    v->a[v->n++]= x; return NULL;                                                       \
-  }                                                                                     \
+    v->a[v->n++]= x; return NULL; }                                                     \
   static inline const char*                                                             \
   tsc_vec_##name##_extend(tsc_vec_##name##_t *dst, tsc_vec_##name##_t *src) {           \
     const char *estr;                                                                   \
@@ -70,18 +70,20 @@
       if( (estr = tsc_vec_##name##_resize(dst, n)) != NULL )                            \
         return estr;                                                                    \
     memcpy(dst->a + dst->n, src->a, sizeof(type) * src->n);                             \
-    dst->n = n; return NULL;                                                            \
-  }                                                                                     \
+    dst->n = n; return NULL; }                                                          \
   static inline const char * tsc_vec_##name##_reverse(tsc_vec_##name##_t *v) {          \
     type tmp;                                                                           \
     for( size_t i = (v->n-1) >> 1 ; (i + 1) > 0 ; --i) {                                \
       tmp = v->a[i]; v->a[i] = v->a[v->n - i - 1]; v->a[v->n - i - 1] = tmp;            \
     }                                                                                   \
-    return NULL;                                                                        \
-  }                                                                                     \
+    return NULL; }                                                                      \
   static inline const char* tsc_vec_##name##_subvec(tsc_vec_##name##_t *dst,            \
     tsc_vec_##name##_t *src, size_t start, size_t count)                                \
   {                                                                                     \
+    if(dst == src) {                                                                    \
+      tsc_vec_splice(*dst, start, count);                                               \
+      return NULL;                                                                      \
+    }                                                                                   \
     const char *estr;                                                                   \
     size_t n;                                                                           \
     if(start > src->n) {                                                                \
@@ -95,9 +97,24 @@
     }                                                                                   \
     if( (estr = tsc_vec_##name##_resize(dst, n)) != NULL )                              \
       return estr;                                                                      \
-    memmove(dst->a, src->a + start, sizeof(type) * n);                                  \
-    dst->n = n; return NULL;                                                            \
-  }
+    memcpy(dst->a, src->a + start, sizeof(type) * n);                                   \
+    dst->n = n; return NULL; }                                                          \
+  static inline const char*                                                             \
+  tsc_vec_##name##_insert(tsc_vec_##name##_t *v, size_t idx, type x) {                  \
+    if(idx > v->n) return "INDEX OUT OF BOUND";                                         \
+    if(idx == v->n) return tsc_vec_##name##_push(v, x);                                 \
+    if(v->n == v->m) {                                                                  \
+      const char *estr;                                                                 \
+      size_t m = v->m ? v->m << 1 : 4;                                                  \
+      if( (estr = tsc_vec_##name##_resize(v, m)) != NULL )                              \
+        return estr;                                                                    \
+    }                                                                                   \
+    for(size_t i = v->n ; i > idx ; --i ) {                                             \
+      v->a[i] = v->a[i-1];                                                              \
+    }                                                                                   \
+    v->n++; v->a[idx] = x; return NULL; }                                               
+  
+  
 #define tsc_vec_splice(v, start, count) do {                                            \
     if(count == 0) break;                                                               \
     if(start > (v).n) {                                                                 \
