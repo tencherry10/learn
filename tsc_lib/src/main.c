@@ -1,10 +1,13 @@
 #include <assert.h>
 
+#define TSC_POOL_FIRST_FIT
 #define TSC_DEFINE
 #include "tsc.h"
 
 tsc_vec_define(vi, int)
 typedef tsc_vec_type(vi) vec_int_t;
+
+tsc_pool_block  heap1[2600];
 
 int main(int argc, const char ** argv) {
   (void)argc;
@@ -248,6 +251,87 @@ int main(int argc, const char ** argv) {
   printf("lower: %s\n", s);
   free(s);
   
+  {
+    void *      ptr_array[256];
+    size_t      i;
+    int         idx;
+    tsc_pool_t  pool1;
+    
+    tsc_pool_init(&pool1, heap1, sizeof(heap1)/sizeof(heap1[0]));
+    //~ tsc_pool_init(&pool1, NULL, 2600);
+
+    //~ printf( "Size of umm_heap is %zu\n", sizeof(heap1)       );
+    //~ printf( "Size of header   is %zu\n", sizeof(heap1[0])    );
+    //~ printf( "Size of nblock   is %zu\n", sizeof(heap1[0].header.used.next) );
+    //~ printf( "Size of pblock   is %zu\n", sizeof(heap1[0].header.used.prev) );
+    //~ printf( "Size of nfree    is %zu\n", sizeof(heap1[0].body.free.next)   );
+    //~ printf( "Size of pfree    is %zu\n", sizeof(heap1[0].body.free.prev)   );
+    
+    //~ tsc_pool_info(&pool1, NULL);
+    
+    #define realloc(...)  tsc_pool_realloc(&pool1,__VA_ARGS__)
+    #define malloc(...)   tsc_pool_malloc(&pool1,__VA_ARGS__)
+    #define free(...)     tsc_pool_free(&pool1,__VA_ARGS__)
+
+    for( idx=0; idx<256; ++idx )
+      ptr_array[idx] = NULL;
+    
+    size_t sz = 0;
+    for( idx=0; idx<6553500; ++idx ) {
+      i = rand()%256;
+ 
+      switch( rand() % 16 ) {
+      case  0:
+      case  1:
+      case  2:
+      case  3:
+      case  4:
+      case  5:
+      case  6:  ptr_array[i] = realloc(ptr_array[i], 0);
+                //printf("free ptr[%zu]\n", i);
+                break;
+      case  7:
+      case  8:  sz = rand()%40;
+                ptr_array[i] = realloc(ptr_array[i], sz );
+                //printf("alloc ptr[%zu] w/ %zu bytes\n", i, sz);
+                break;
+
+      case  9:
+      case 10:
+      case 11:
+      case 12:  sz = rand()%100;
+                ptr_array[i] = realloc(ptr_array[i], sz );
+                //printf("alloc ptr[%zu] w/ %zu bytes\n", i, sz);
+                break;
+
+      case 13:
+      case 14:  sz = rand()%200;
+                ptr_array[i] = realloc(ptr_array[i], sz );
+                //printf("alloc ptr[%zu] w/ %zu bytes\n", i, sz);
+                break;
+
+      default:  sz = rand()%400;
+                ptr_array[i] = realloc(ptr_array[i], sz );
+                //printf("alloc ptr[%zu] w/ %zu bytes\n", i, sz);
+                break;
+      }
+      
+      //tsc_pool_info(&pool1, NULL); printf("\n\n");
+    }
+
+    tsc_pool_freeall(&pool1);
+    
+    //~ for( idx=0; idx<256; ++idx )
+      //~ free(ptr_array[idx]);
+    
+    tsc_pool_info(&pool1, NULL);
+    
+    tsc_pool_deinit(&pool1);
+    
+    #undef realloc
+    #undef malloc
+    #undef free
+  }
   
   return 0;
 }
