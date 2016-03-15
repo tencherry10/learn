@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <malloc.h>
 
 #define TSC_POOL_FIRST_FIT
 #define TSC_DEFINE
@@ -7,7 +8,7 @@
 tsc_vec_define(vi, int)
 typedef tsc_vec_type(vi) vec_int_t;
 
-tsc_pool_block  heap1[2600];
+//~ tsc_pool_block  heap1[2600];
 
 int main(int argc, const char ** argv) {
   (void)argc;
@@ -326,7 +327,7 @@ int main(int argc, const char ** argv) {
     #undef free
   }
   
-  {
+  if(0) {
     tsc_hpool_t pool1;    
     tsc_hpool_init(&pool1, NULL, 64);
 
@@ -380,7 +381,7 @@ int main(int argc, const char ** argv) {
     
   }
 
-  {
+  if(0) {
     tsc_pool_t pool1;    
     tsc_pool_init(&pool1, NULL, 64);
 
@@ -419,7 +420,7 @@ int main(int argc, const char ** argv) {
   }
   
   
-  {
+  if(0) {
     void *p1 = malloc(40);
     void *p2 = malloc(40);
     void *p3 = malloc(40);
@@ -431,6 +432,22 @@ int main(int argc, const char ** argv) {
     free(p1);
     free(p2);
     free(p3);
+  }
+  
+  { 
+    int *p1 = malloc(8152);
+    //~ int *p2 = malloc(0);
+    struct mallinfo info = mallinfo();
+    //~ printf("p1 = %p\n", (void*) p1);
+    //~ printf("p2 = %p\n", (void*) p2);
+    printf("info.arena    = %d\n", info.arena);
+    printf("info.ordblks  = %d\n", info.ordblks);
+    printf("info.hblks    = %d\n", info.hblks);
+    printf("info.hblkhd   = %d\n", info.hblkhd);
+    printf("info.uordblks = %d\n", info.uordblks);
+    printf("info.fordblks = %d\n", info.fordblks);
+    //~ free(p2);
+    free(p1);
   }
   
   return 0;
