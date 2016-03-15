@@ -4,6 +4,12 @@
 // However, portions of this code is motivated directly / indirectly from other code base with permissive license
 // They are listed in LICENSE.txt and for compliance it is best to include that in your LICENSE.txt if you choose to use tsc.h
 
+// ideas for improvements
+// 1. pool size are limited to 2^16*blocksize, maybe we should make a larger pool?
+// 2. tsc_freadlines is unnecessarily complicated. Why not just memmap and search for '\n'
+// 3. tsc_hpool_init / tsc_pool_init needs error handling
+// 4. need to add stats to hpool / pool
+
 #ifndef TSC__INCLUDE_TSC_H
 #define TSC__INCLUDE_TSC_H
 //}
