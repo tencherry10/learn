@@ -22,7 +22,22 @@
   #define TSC_EXTERN extern
 #endif
 
+#if defined(__GNUC__) && (__GNUC__ > 2) && defined(__OPTIMIZE__)
+  #define tsc_likely(expr) __builtin_expect(!!(expr), 1)
+  #define tsc_likely_if(expr) if(__builtin_expect(!!(expr), 1))
+  #define tsc_unlikely(expr) __builtin_expect(!!(expr), 0)
+  #define tsc_unlikely_if(expr) if(__builtin_expect(!!(expr), 0))
+#else
+  #define tsc_likely(expr) (expr)
+  #define tsc_likely_if(expr) if((expr))
+  #define tsc_unlikely(expr) (expr)
+  #define tsc_unlikely_if(expr) if((expr))
+#endif
 
+/// tsc_vec class is done with some nasty gnarly macros. This is intentional.
+/// In C, where generic container is not possible, the only way to get a cleaner implementation
+/// is to use void * pointers and then cast to and from it. The problem with that approach is that
+/// casts prevents optimization and loop unrolling (type information is lost).
 
 //{ tsc_vec_define
 // CAUTION, if OOM happens in resize / copy / push, you are responsible for cleaning up dst
@@ -57,15 +72,15 @@
   typedef struct { size_t n, m; type *a; } tsc_vec_##name##_t;                          \
   static inline const char* tsc_vec_##name##_resize(tsc_vec_##name##_t *v, size_t s) {  \
     type *tmp;                                                                          \
-    if( (tmp = (type*)realloc(v->a, sizeof(type) * s)) == NULL )                        \
+    tsc_unlikely_if((tmp = (type*)realloc(v->a, sizeof(type) * s)) == NULL )                        \
       return "OOM";                                                                     \
     v->m = s; v->a = tmp; return NULL; }                                                \
   static inline const char*                                                             \
   tsc_vec_##name##_copy(tsc_vec_##name##_t *dst, tsc_vec_##name##_t *src) {             \
     const char *estr;                                                                   \
-    if (dst == src) return "COPYING FROM SRC TO SRC";                                   \
+    tsc_unlikely_if(dst == src) return "COPYING FROM SRC TO SRC";                                   \
     if (dst->m < src->n)                                                                \
-      if( (estr = tsc_vec_##name##_resize(dst, src->n)) != NULL )                       \
+      tsc_unlikely_if( (estr = tsc_vec_##name##_resize(dst, src->n)) != NULL )                       \
         return estr;                                                                    \
     dst->n = src->n;                                                                    \
     memcpy(dst->a, src->a, sizeof(type) * src->n); return NULL; }                       \
@@ -73,7 +88,7 @@
     const char *estr;                                                                   \
     if(v->n == v->m) {                                                                  \
       size_t m = v->m ? v->m << 1 : 4;                                                  \
-      if( (estr = tsc_vec_##name##_resize(v, m)) != NULL )                              \
+      tsc_unlikely_if( (estr = tsc_vec_##name##_resize(v, m)) != NULL )                 \
         return estr;                                                                    \
     }                                                                                   \
     v->a[v->n++]= x; return NULL; }                                                     \
@@ -82,7 +97,7 @@
     const char *estr;                                                                   \
     size_t n = dst->n + src->n;                                                         \
     if(dst->m < n)                                                                      \
-      if( (estr = tsc_vec_##name##_resize(dst, n)) != NULL )                            \
+      tsc_unlikely_if( (estr = tsc_vec_##name##_resize(dst, n)) != NULL )               \
         return estr;                                                                    \
     memcpy(dst->a + dst->n, src->a, sizeof(type) * src->n);                             \
     dst->n = n; return NULL; }                                                          \
@@ -95,7 +110,7 @@
   static inline const char* tsc_vec_##name##_subvec(tsc_vec_##name##_t *dst,            \
     tsc_vec_##name##_t *src, size_t start, size_t count)                                \
   {                                                                                     \
-    if(dst == src) {                                                                    \
+    tsc_unlikely_if(dst == src) {                                                       \
       tsc_vec_splice(*dst, start, count);                                               \
       return NULL;                                                                      \
     }                                                                                   \
@@ -110,18 +125,18 @@
     } else {                                                                            \
       n = count;                                                                        \
     }                                                                                   \
-    if( (estr = tsc_vec_##name##_resize(dst, n)) != NULL )                              \
+    tsc_unlikely_if( (estr = tsc_vec_##name##_resize(dst, n)) != NULL )                 \
       return estr;                                                                      \
     memcpy(dst->a, src->a + start, sizeof(type) * n);                                   \
     dst->n = n; return NULL; }                                                          \
   static inline const char*                                                             \
   tsc_vec_##name##_insert(tsc_vec_##name##_t *v, size_t idx, type x) {                  \
-    if(idx > v->n) return "INDEX OUT OF BOUND";                                         \
+    tsc_unlikely_if(idx > v->n) return "INDEX OUT OF BOUND";                            \
     if(idx == v->n) return tsc_vec_##name##_push(v, x);                                 \
     if(v->n == v->m) {                                                                  \
       const char *estr;                                                                 \
       size_t m = v->m ? v->m << 1 : 4;                                                  \
-      if( (estr = tsc_vec_##name##_resize(v, m)) != NULL )                              \
+      tsc_unlikely_if( (estr = tsc_vec_##name##_resize(v, m)) != NULL )                 \
         return estr;                                                                    \
     }                                                                                   \
     for(size_t i = v->n ; i > idx ; --i ) {                                             \
@@ -139,12 +154,12 @@
       ret = ret || !!(v->a[i]);                                                         \
     return ret; }
 #define tsc_vec_splice(v, start, count) do {                                            \
-    if(count == 0) break;                                                               \
-    if(start > (v).n) {                                                                 \
+    tsc_unlikely_if(count == 0) break;                                                  \
+    tsc_unlikely_if(start > (v).n) {                                                    \
       (v).n = 0;                                                                        \
       break;                                                                            \
     }                                                                                   \
-    if(start + count > (v).n) {                                                         \
+    tsc_unlikely_if(start + count > (v).n) {                                            \
       (v).n = start;                                                                    \
       break;                                                                            \
     }                                                                                   \
@@ -153,21 +168,22 @@
     (v).n -= count;                                                                     \
   } while(0)
 #define tsc_vec_foreach(v, var, iter)                                                   \
-  if( (v).n > 0 )                                                                       \
+  tsc_likely_if( (v).n > 0 )                                                            \
     for ( (iter) = 0; ((iter) < (v).n) && (((var) = (v).a[(iter)]), 1); ++(iter))
 #define tsc_vec_foreach_rev(v, var, iter)                                               \
-  if( (v).n > 0 )                                                                       \
+  tsc_likely_if( (v).n > 0 )                                                            \
     for ( (iter) = v.n - 1 ; ((iter + 1) > 0) && (((var) = (v).a[(iter)]), 1); --(iter))
 #define tsc_vec_foreach_ptr(v, var, iter)                                               \
-  if( (v).n > 0 )                                                                       \
+  tsc_likely_if( (v).n > 0 )                                                            \
     for ( (iter) = 0; ((iter) < (v).n) && (((var) = &((v).a[(iter)])), 1); ++(iter))
 #define tsc_vec_foreach_ptr_rev(v, var, iter)                                           \
-  if( (v).n > 0 )                                                                       \
+  tsc_likely_if( (v).n > 0 )                                                            \
     for ( (iter) = v.n - 1 ; ((iter + 1) > 0) && (((var) = &((v).a[(iter)]) ), 1); --(iter))
 #define tsc_vec_map(v, fn) do {                                                         \
-  if( (v).n > 0 ) {                                                                     \
-    for ( size_t i = 0; i < (v).n ; ++i) {                                              \
-      (v).a[i] = fn((v).a[i]);                                                          \
+    tsc_likely_if( (v).n > 0 ) {                                                        \
+      for ( size_t i = 0; i < (v).n ; ++i) {                                              \
+        (v).a[i] = fn((v).a[i]);                                                          \
+      }                                                                                 \
     }                                                                                   \
   } while(0)
 //}
@@ -344,7 +360,7 @@ int tsc_strendswith(const char *s, const char *end) {
   int end_len;
   int str_len;
   
-  if (NULL == s || NULL == end) return 0;
+  tsc_unlikely_if(NULL == s || NULL == end) return 0;
 
   end_len = strlen(end);
   str_len = strlen(s);
@@ -354,7 +370,7 @@ int tsc_strendswith(const char *s, const char *end) {
 
 char* tsc_strtrimleft_inplace(char *str) {
   int len = strlen(str);
-  if(len == 0) return str;
+  tsc_unlikely_if(len == 0) return str;
   char *cur = str;
   while (*cur && isspace(*cur)) {
     ++cur;
@@ -366,7 +382,7 @@ char* tsc_strtrimleft_inplace(char *str) {
 
 char* tsc_strtrimright_inplace(char *str) {
   int len = strlen(str);
-  if(len == 0) return str;
+  tsc_unlikely_if(len == 0) return str;
   char *cur = str + len - 1;
   while (cur != str && isspace(*cur)) --cur;
   cur[isspace(*cur) ? 0 : 1] = '\0';
@@ -407,7 +423,7 @@ const char * tsc_strflatten(char **ret, char ** str_array, size_t n, const char 
     size   += lens[i];
   }
   
-  if( (*ret = (char *) malloc(size + 1 + (n-1)*sep_sz)) == NULL )
+  tsc_unlikely_if( (*ret = (char *) malloc(size + 1 + (n-1)*sep_sz)) == NULL )
     return "OOM";
     
   (*ret)[size + (n-1)*sep_sz] = '\0';
@@ -437,7 +453,7 @@ const char * tsc_strtrim(char **ret, const char *s) {
   while (isspace(*s))
     s++;
 
-  if (*s == 0) // only spaces
+  tsc_unlikely_if(*s == 0) // only spaces
     return NULL;
 
   // rtrim
@@ -449,17 +465,17 @@ const char * tsc_strtrim(char **ret, const char *s) {
 }
 
 const char * tsc_strdup(char **ret, const char *s) {
-  if(s == NULL) { *ret = NULL; return NULL; }
+  tsc_unlikely_if(s == NULL) { *ret = NULL; return NULL; }
   size_t len = strlen(s) + 1;
-  if( (*ret = (char *) malloc(len)) == NULL )
+  tsc_unlikely_if( (*ret = (char *) malloc(len)) == NULL )
     return "OOM";
   memcpy(*ret, s, len);
   return NULL;
 }
 
 const char * tsc_strndup(char **ret, const char *s, size_t n) {
-  if(s == NULL) { *ret = NULL; return NULL; }
-  if( (*ret = (char *) malloc(n+1)) == NULL )
+  tsc_unlikely_if(s == NULL) { *ret = NULL; return NULL; }
+  tsc_unlikely_if( (*ret = (char *) malloc(n+1)) == NULL )
     return "OOM";
   strncpy(*ret, s, n);  // use strncpy to ensure *ret is properly padded with zero
   (*ret)[n] = '\0';
@@ -476,7 +492,7 @@ inline const char * tsc_strupper(char **ret, char *s) {
 
 inline const char * tsc_strlower(char **ret, char *s) {
   const char  *estr = NULL;
-  if( (estr = tsc_strdup(ret, s)) != NULL )
+  tsc_unlikely_if( (estr = tsc_strdup(ret, s)) != NULL )
     return estr;
   tsc_strlower_inplace(*ret);
   return NULL;
@@ -494,16 +510,15 @@ const char * tsc_freadline(char **ret, FILE *stream) {
   int         n     = 0;
   int         nlast;
   
-  if( (*ret = (char *) calloc(avail,1)) == NULL )
+  tsc_unlikely_if( (*ret = (char *) calloc(avail,1)) == NULL )
     return "OOM";
   
   while(1) {
     if( fgets(*ret + n, avail - n, stream) == NULL ) {
-      if(ferror(stream) != 0) {
+      tsc_unlikely_if(ferror(stream) != 0) {
         free(*ret); *ret = NULL; return "FGETS FAILED";
-      } else {                  // normal condition
-        return "EOF";
-      }
+      } 
+      return "EOF";
     }
     
     nlast = strlen(*ret)-1;
@@ -514,7 +529,7 @@ const char * tsc_freadline(char **ret, FILE *stream) {
     
     if( feof(stream) != 0 ) {
       if(nlast == (avail - 2)) {  // bad luck, eof at boundary of buffer (need to grow it by 1)
-        if( (tmp = (char *) realloc(*ret, ++avail)) == NULL ) {
+        tsc_unlikely_if( (tmp = (char *) realloc(*ret, ++avail)) == NULL ) {
           free(*ret); *ret = NULL; return "OOM";
         }
       }
@@ -524,7 +539,7 @@ const char * tsc_freadline(char **ret, FILE *stream) {
     if(nlast == (avail - 2)) {  // not eof and no new line, buffer size must be not big enough
       n     = avail - 1;        // avail - 1 b/c we want to reuse the old \0 spot
       avail = avail << 1;
-      if( (tmp = (char *) realloc(*ret, avail)) == NULL ) {
+      tsc_unlikely_if( (tmp = (char *) realloc(*ret, avail)) == NULL ) {
         free(*ret); *ret = NULL; return "OOM";
       }
       *ret = tmp;
@@ -540,7 +555,7 @@ const char * tsc_freadlines(char ***ret, int *nlines, FILE *stream) {
   
   *nlines = 0;
   
-  if( (*ret = (char **) calloc(avail,sizeof(char *))) == NULL )
+  tsc_unlikely_if( (*ret = (char **) calloc(avail,sizeof(char *))) == NULL )
     return "OOM";
   
   while(1) {
@@ -554,7 +569,7 @@ const char * tsc_freadlines(char ***ret, int *nlines, FILE *stream) {
       (*ret)[(*nlines)++]=line;
       line = NULL;
       if(avail == *nlines) {
-        if( (tmp = (char **) realloc(*ret, avail << 1)) == NULL ) {
+        tsc_unlikely_if( (tmp = (char **) realloc(*ret, avail << 1)) == NULL ) {
           for(int i = 0 ; i < avail ; i++) 
             free((*ret)[i]);
           free((*ret)); *ret = NULL; return "OOM";
@@ -582,18 +597,17 @@ const char * tsc_freadline0(char **ret, int *sz, FILE *stream) {
   int         n     = 0;
   int         nlast;
   
-  if( (*ret = (char *) calloc(avail, 1)) == NULL )
+  tsc_unlikely_if( (*ret = (char *) calloc(avail, 1)) == NULL )
     return "OOM";
     
   while(1) {
     if( fgets(*ret + n, avail - n, stream) == NULL ) {
-      if(ferror(stream) != 0) {
+      tsc_unlikely_if(ferror(stream) != 0) {
         if(sz) *sz = 0;
         free(*ret); *ret = NULL; return "FGETS FAILED";
-      } else {                  // normal condition
-        if(sz) *sz = n;
-        return "EOF";
-      }
+      } 
+      if(sz) *sz = n;
+      return "EOF";
     }
     
     for(nlast = avail - 1 ; nlast >= 0 ; nlast--) {
@@ -609,7 +623,7 @@ const char * tsc_freadline0(char **ret, int *sz, FILE *stream) {
     
     if( feof(stream) != 0 ) {
       if(nlast == (avail - 2)) {  // bad luck, eof at boundary of buffer (need to grow it by 1)
-        if( (tmp = (char *) realloc(*ret, ++avail)) == NULL ) {
+        tsc_unlikely_if( (tmp = (char *) realloc(*ret, ++avail)) == NULL ) {
           if(sz) *sz = 0; 
           free(*ret); *ret = NULL; return "OOM";
         }
@@ -621,7 +635,7 @@ const char * tsc_freadline0(char **ret, int *sz, FILE *stream) {
     if(nlast == (avail - 2)) {  // not eof and no new line, buffer size must be not big enough
       n     = avail - 1;        // avail - 1 b/c we want to reuse the old \0 spot
       avail = avail << 1;
-      if( (tmp = (char *) realloc(*ret, avail)) == NULL ) {
+      tsc_unlikely_if( (tmp = (char *) realloc(*ret, avail)) == NULL ) {
         if(sz) *sz = 0;
         free(*ret); *ret = NULL; return "OOM";
       }
