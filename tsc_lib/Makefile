@@ -9,7 +9,7 @@ RM      = rm -f
 SRC     = $(wildcard src/*.c)
 DEPS    = $(wildcard deps/*/*.c)
 OBJS    = $(DEPS:.c=.o)
-CFLAGS  = -std=c99 -pedantic -Ideps -Isrc -g
+CFLAGS  = -std=c99 -pedantic -Ideps -Isrc -O3
 CFLAGS += -Wall -Werror -Wextra -Wno-unused-function -Wno-unused-value -Wno-unused-variable -Wno-unused-result
 CFLAGS_BINS = -DTEST_MAIN
 CDLL    = -shared
