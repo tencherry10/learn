@@ -7,8 +7,8 @@
 // ideas for improvements
 // 1. pool size are limited to 2^16*blocksize, maybe we should make a larger pool?
 // 2. tsc_freadlines is unnecessarily complicated. Why not just memmap and search for '\n'
-// 3. tsc_hpool_init / tsc_pool_init needs error handling
-// 4. need to add stats to hpool / pool
+// 3. need to add stats to hpool / pool
+// 4. consider using memory map for tsc_freadall 
 
 #ifndef TSC__INCLUDE_TSC_H
 #define TSC__INCLUDE_TSC_H
@@ -23,7 +23,6 @@
 #include <ctype.h>
 #include <inttypes.h>
 #include <limits.h>
-
 
 #ifdef __cplusplus
   #define TSC_EXTERN extern "C"
@@ -217,13 +216,15 @@ TSC_EXTERN inline const char * tsc_strtrunc(char **ret, const char *s, size_t n)
 TSC_EXTERN inline const char * tsc_strupper(char **ret, char *s);
 TSC_EXTERN inline const char * tsc_strlower(char **ret, char *s);
 
-/// files
+/// files / IO
 TSC_EXTERN const char * tsc_freadline(char **ret, FILE *stream);
 TSC_EXTERN const char * tsc_freadlines(char ***ret, int *nlines, FILE *stream);
 TSC_EXTERN const char * tsc_freadlinesfree(char **ret, int nlines);
 TSC_EXTERN const char * tsc_freadline0(char **ret, int *sz, FILE *stream);
 
 TSC_EXTERN const char * tsc_getpass(char **lineptr, FILE *stream);
+
+TSC_EXTERN const char * tsc_freadall(char **ret, FILE *stream);
 
 /// memory
 TSC_EXTERN const char * tsc_alloc2d(void ***ret, size_t y, size_t x, size_t sz);
@@ -344,25 +345,24 @@ typedef struct tsc_hpool_t {
   uint16_t          allocd;
 } tsc_hpool_t;
 
-TSC_EXTERN void   tsc_hpool_init(tsc_hpool_t *heap, tsc_hpool_block *mem, uint16_t numblocks);
-TSC_EXTERN void   tsc_hpool_deinit(tsc_hpool_t *heap);
-TSC_EXTERN void   tsc_hpool_free(tsc_hpool_t *heap, void *ptr);
-TSC_EXTERN void   tsc_hpool_freeall(tsc_hpool_t *heap);
-TSC_EXTERN void * tsc_hpool_malloc(tsc_hpool_t *heap, size_t size);
-TSC_EXTERN void * tsc_hpool_calloc(tsc_hpool_t *heap, size_t n, size_t size);
-TSC_EXTERN void * tsc_hpool_realloc(tsc_hpool_t *heap, void *ptr, size_t size);
-TSC_EXTERN void   tsc_hpool_attach(tsc_hpool_t *heap, void *ptr, void *parent);
-TSC_EXTERN void * tsc_hpool_info(tsc_hpool_t *heap, void *ptr);
-
-TSC_EXTERN void   tsc_pool_init(tsc_pool_t *heap, tsc_pool_block *mem, uint16_t numblocks);
-TSC_EXTERN void   tsc_pool_deinit(tsc_pool_t *heap);
-TSC_EXTERN void   tsc_pool_free(tsc_pool_t *heap, void *ptr);
-TSC_EXTERN void   tsc_pool_freeall(tsc_pool_t *heap);
-TSC_EXTERN void * tsc_pool_malloc(tsc_pool_t *heap, size_t size);
-TSC_EXTERN void * tsc_pool_calloc(tsc_pool_t *heap, size_t n, size_t size);
-TSC_EXTERN void * tsc_pool_realloc(tsc_pool_t *heap, void *ptr, size_t size);
-TSC_EXTERN void * tsc_pool_info(tsc_pool_t *heap, void *ptr);
-
+TSC_EXTERN const char * tsc_hpool_init(tsc_hpool_t *heap, tsc_hpool_block *mem, uint16_t numblocks);
+TSC_EXTERN void         tsc_hpool_deinit(tsc_hpool_t *heap);
+TSC_EXTERN void         tsc_hpool_free(tsc_hpool_t *heap, void *ptr);
+TSC_EXTERN void         tsc_hpool_freeall(tsc_hpool_t *heap);
+TSC_EXTERN void *       tsc_hpool_malloc(tsc_hpool_t *heap, size_t size);
+TSC_EXTERN void *       tsc_hpool_calloc(tsc_hpool_t *heap, size_t n, size_t size);
+TSC_EXTERN void *       tsc_hpool_realloc(tsc_hpool_t *heap, void *ptr, size_t size);
+TSC_EXTERN void         tsc_hpool_attach(tsc_hpool_t *heap, void *ptr, void *parent);
+TSC_EXTERN void *       tsc_hpool_info(tsc_hpool_t *heap, void *ptr);
+      
+TSC_EXTERN const char * tsc_pool_init(tsc_pool_t *heap, tsc_pool_block *mem, uint16_t numblocks);
+TSC_EXTERN void         tsc_pool_deinit(tsc_pool_t *heap);
+TSC_EXTERN void         tsc_pool_free(tsc_pool_t *heap, void *ptr);
+TSC_EXTERN void         tsc_pool_freeall(tsc_pool_t *heap);
+TSC_EXTERN void *       tsc_pool_malloc(tsc_pool_t *heap, size_t size);
+TSC_EXTERN void *       tsc_pool_calloc(tsc_pool_t *heap, size_t n, size_t size);
+TSC_EXTERN void *       tsc_pool_realloc(tsc_pool_t *heap, void *ptr, size_t size);
+TSC_EXTERN void *       tsc_pool_info(tsc_pool_t *heap, void *ptr);
 
 #define TSC_DEFINE
 #ifdef TSC_DEFINE
@@ -628,6 +628,35 @@ const char * tsc_getpass(char **lineptr, FILE *stream) {
   return estr;
 }
 
+const char * tsc_freadall(char **ret, FILE *stream) {
+  char    *tmp  = NULL;  
+  size_t  avail = 256;
+  size_t  n     = 0;
+  size_t  nread;
+
+  tsc_unlikely_if( (*ret = (char *) malloc(avail+1)) == NULL )
+    return "OOM";
+  (*ret)[avail] = '\0';
+  
+  while(1) {
+    nread = fread(*ret + n, 1, avail - n, stream);
+    
+    if(nread != (avail - n)) {
+      tsc_unlikely_if(ferror(stream) != 0) {
+        free(*ret); *ret = NULL; return "FGETS FAILED";
+      } 
+      return "EOF";
+    }
+    
+    n = avail;
+    avail = avail << 1;
+    tsc_unlikely_if( (tmp = (char *) realloc(*ret, avail+1)) == NULL ) {
+      free(*ret); *ret = NULL; return "OOM";
+    }
+    *ret = tmp;
+    (*ret)[avail] = '\0';
+  }
+}
 
 // same as tsc_freadline, but will handle \0
 // which is why sz parameter is needed. When \0 exist *sz != strlen(ret)
@@ -1111,9 +1140,14 @@ static void tsc_hpool_relink_hier(tsc_hpool_t *heap, uint16_t c, uint16_t newc) 
   }
 }
 
-void tsc_pool_init(tsc_pool_t *heap, tsc_pool_block *mem, uint16_t numblocks) {
+const char * tsc_pool_init(tsc_pool_t *heap, tsc_pool_block *mem, uint16_t numblocks) {
   if(mem == NULL) {
     heap->heap  = (tsc_pool_block *) malloc(numblocks*sizeof(tsc_pool_block));
+    if(heap->heap == NULL) {
+      heap->allocd    = 0;
+      heap->numblocks = 0;
+      return "OOM";
+    }    
     heap->allocd= 1;
   } else {
     heap->heap = mem;
@@ -1121,18 +1155,25 @@ void tsc_pool_init(tsc_pool_t *heap, tsc_pool_block *mem, uint16_t numblocks) {
   }
   memset(heap->heap, 0, numblocks * sizeof(tsc_pool_block));
   heap->numblocks = numblocks;
+  return NULL;
 }
 
-void tsc_hpool_init(tsc_hpool_t *heap, tsc_hpool_block *mem, uint16_t numblocks) {
+const char * tsc_hpool_init(tsc_hpool_t *heap, tsc_hpool_block *mem, uint16_t numblocks) {
   if(mem == NULL) {
     heap->heap  = (tsc_hpool_block *) malloc(numblocks*sizeof(tsc_hpool_block));
+    if(heap->heap == NULL) {
+      heap->allocd    = 0;
+      heap->numblocks = 0;
+      return "OOM";
+    }
     heap->allocd= 1;
   } else {
-    heap->heap = mem;
+    heap->heap  = mem;
     heap->allocd= 0;
   }
   memset(heap->heap, 0, numblocks * sizeof(tsc_hpool_block));
   heap->numblocks = numblocks;
+  return NULL;
 }
 
 void tsc_pool_deinit(tsc_pool_t *heap) {
@@ -1795,7 +1836,7 @@ void tsc_hpool_attach(tsc_hpool_t *heap, void *ptr, void *parent) {
 
 // these functions are kind of interesting.
 // they use up a non-trivial amount of re-direction pointer memory at the beginning in order to 
-// "emulate" multi-dimensional pointer accesses
+// "emulate" static multi-dimensional pointer accesses
 
 // these are the sort of things that the compiler provides for you for free for 
 // static multi-dimension matrices. Although, the static matrices must be regular. 
@@ -1816,6 +1857,13 @@ void tsc_hpool_attach(tsc_hpool_t *heap, void *ptr, void *parent) {
 // if you traverse in x then y then z. If you traverse in y or in z first, 
 // you may have to constantly move data in and out of the cache.
 // although this is a problem generally for any array-based matrices structure
+
+// the biggest problem with these matrices data structure is that they are fixed in stone.
+// you have to known a priori what the size shall be. 
+// in practice, this isn't a problem though. 
+// If I need to do a lot of low level data traversals that will justify the use of this datastructure
+// then I better know what the memory usage ought to be, and if I don't, 
+// an array based datastructure is probably a bad idea anyway.
 
 const char* tsc_alloc2d(void ***ret, size_t y, size_t x, size_t sz) {
   size_t header = y*sizeof(void*);
@@ -1885,7 +1933,7 @@ const char* tsc_alloc3d_irregular(void ****ret, size_t z, size_t y, size_t ** x_
   return NULL;
 }
 
-const char * tsc_base64_enc(char **ret, char *data, size_t sz) {
+const char* tsc_base64_enc(char **ret, char *data, size_t sz) {
   static char base64_enc_table[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
                                     'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
                                     'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
@@ -1922,7 +1970,7 @@ const char * tsc_base64_enc(char **ret, char *data, size_t sz) {
   return NULL;
 }
 
-const char * tsc_base64_dec(char **ret, size_t* retsz, char *data, size_t datsz) {
+const char* tsc_base64_dec(char **ret, size_t* retsz, char *data, size_t datsz) {
   static char base64_dec_table[] = {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
