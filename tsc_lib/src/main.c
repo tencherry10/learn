@@ -1,14 +1,16 @@
-#include <assert.h>
-#include <malloc.h>
+
 
 #define TSC_POOL_FIRST_FIT
 #define TSC_DEFINE
 #include "tsc.h"
+#include <assert.h>
+#include <malloc.h>
+
 
 tsc_vec_define(vi, int)
 typedef tsc_vec_type(vi) vec_int_t;
 
-//~ tsc_pool_block  heap1[2600];
+tsc_pool_block  heap1[2600];
 
 int main(int argc, const char ** argv) {
   (void)argc;
@@ -434,7 +436,7 @@ int main(int argc, const char ** argv) {
     free(p3);
   }
   
-  { 
+  if(0) { 
     int *p1 = malloc(8152);
     //~ int *p2 = malloc(0);
     struct mallinfo info = mallinfo();
@@ -448,6 +450,66 @@ int main(int argc, const char ** argv) {
     printf("info.fordblks = %d\n", info.fordblks);
     //~ free(p2);
     free(p1);
+  }
+  
+  if(0) {
+    int **mat2d, **tri2d;
+    
+    assert(tsc_alloc2d((void***) &mat2d,3,3,4) == NULL);
+    
+    for(int i = 0 ; i < 3 ; i++)
+      for(int j = 0 ; j < 3 ; j++)
+        mat2d[i][j] = i*100+j;
+    
+    for(int i = 0 ; i < 3 ; i++)
+      for(int j = 0 ; j < 3 ; j++)
+        printf("mat2d[%d][%d] = %d\n", i, j, mat2d[i][j]);
+    
+    for(int i = 0 ; i < 3 ; i++)
+      for(int j = 0 ; j < 3 ; j++)
+        mat2d[i][j] = mat2d[i][j] * mat2d[i][j];  // multiplied with itself
+    
+    free(mat2d);
+    
+    assert(tsc_alloc2d_irregular((void***) &tri2d, 3, (size_t [3]){1,2,3}, 4) == NULL);
+    
+    for(int i = 0 ; i < 3 ; i++)
+      for(int j = 0 ; j < (i+1) ; j++)
+        tri2d[i][j] = i*100+j;
+    
+    for(int i = 0 ; i < 3 ; i++)
+      for(int j = 0 ; j < (i+1) ; j++)
+        printf("mat2d[%d][%d] = %d\n", i, j, tri2d[i][j]);
+    
+    
+    free(tri2d);
+    
+    char ***mat3d;
+    
+    // 3x3 16char string
+    assert(tsc_alloc3d((void****) &mat3d, 3, 3, 16, 1) == NULL);
+    for(int i = 0 ; i < 3 ; i++)
+      for(int j = 0 ; j < 3 ; j++)
+        sprintf(mat3d[i][j], "hello %d", i*100+j);
+    
+    for(int i = 0 ; i < 3 ; i++)
+      for(int j = 0 ; j < 3 ; j++)
+        printf("mat3d[%d][%d] = %s\n", i, j, mat3d[i][j]);
+    
+    free(mat3d);
+  }
+  
+  {
+    char *user, *pass;
+    const char *estr;
+    printf("user: "); assert(tsc_freadline(&user, stdin) == NULL);  tsc_strtrim_inplace(user);
+    printf("pass: "); assert(tsc_getpass(&pass, stdin) == NULL);    tsc_strtrim_inplace(pass);
+    printf("\n");
+    printf("user: %s pass: %s\n", user, pass);
+    
+    
+    free(user);
+    free(pass);
   }
   
   return 0;
